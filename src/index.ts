@@ -1,13 +1,13 @@
 import express, { Express, Request, Response } from "express";
 import dotenv from "dotenv";
 import {
-  Translation,
-  translationDB,
   AddTranslationRequestSchema,
   GetTranslationRequestSchema,
+  Translation,
 } from "../model/translation";
 import { TranslationService } from "./translationService";
 import { Schema } from "joi";
+
 const mongoose = require("mongoose");
 
 dotenv.config();
