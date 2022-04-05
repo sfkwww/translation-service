@@ -1,6 +1,13 @@
 import express, { Express, Request, Response } from "express";
 import dotenv from "dotenv";
-import { Translation, translationDB } from "../model/translation";
+import {
+  Translation,
+  translationDB,
+  AddTranslationRequestSchema,
+  GetTranslationRequestSchema,
+} from "../model/translation";
+import { TranslationService } from "./translationService";
+import { Schema } from "joi";
 const mongoose = require("mongoose");
 
 dotenv.config();
@@ -15,6 +22,7 @@ interface TranslationRequest {
   key: string;
 }
 
+app.use(express.json());
 mongoConnect();
 
 function mongoConnect() {
@@ -24,37 +32,60 @@ function mongoConnect() {
     .catch(console.log);
 }
 
-app.use(express.json());
+function attachStatusToResponse(
+  err: Error & { statusCode?: number },
+  res: Response
+) {
+  res.status(err.statusCode ?? 500);
+}
+
+function constructError(err: Error) {
+  return { error: err.message };
+}
+
+function handleError(err: Error & { statusCode?: number }, res: Response) {
+  attachStatusToResponse(err, res);
+  return constructError(err);
+}
+
+function validateSchema(schema: Schema, payload: any) {
+  const validationResult = schema.validate(payload);
+  const error = validationResult.error;
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+const translationService = new TranslationService();
 
 app.post("/", async (req: Request<null, Translation>, res: Response) => {
-  const { id, key, translation } = req.body;
-  const result = await translationDB
-    .findOneAndUpdate(
-      { id, key, translation },
-      { id, key, translation },
-      { new: true, upsert: true, projection: toHide }
-    )
-    .catch((err) => {
-      console.log("Error adding translation to DB.");
-      return err;
-    });
+  try {
+    validateSchema(AddTranslationRequestSchema, req.body);
+  } catch (err) {
+    if (err instanceof Error) res.send(handleError(err, res));
+    return;
+  }
+
+  const result = await translationService
+    .addTranslation(req.body)
+    .catch((err) => handleError(err, res));
   res.send(result);
 });
 
 app.get(
   "/",
   async (req: Request<null, null, null, TranslationRequest>, res: Response) => {
+    try {
+      validateSchema(GetTranslationRequestSchema, req.query);
+    } catch (err) {
+      if (err instanceof Error) res.send(handleError(err, res));
+      return;
+    }
+
     const { id, key } = req.query;
-    const result = await translationDB
-      .findOne({ id, key }, { translation: 1 })
-      .then((doc) => {
-        if (!doc) return new Error("Translation not found.");
-        return doc.translation;
-      })
-      .catch((err) => {
-        console.log(`Error finding translation for id: ${id}, key: ${key}`);
-        return err;
-      });
+    const result = await translationService
+      .getTranslation(id, key)
+      .catch((err) => handleError(err, res));
     res.send(result);
   }
 );

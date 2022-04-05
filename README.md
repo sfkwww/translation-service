@@ -13,3 +13,5 @@
 - POST /
   - Body: id (language string), key(translation key), translation
   - Returns: The inserted translation object if successful, otherwise an error.
+
+Error is returned as { error: 'string' }
